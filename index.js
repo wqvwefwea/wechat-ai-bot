@@ -84,20 +84,38 @@ function parseMessage(xml) {
 exports.main_handler = async (event, context) => {
   console.log('收到请求:', JSON.stringify(event));
   
-  const { httpMethod, queryString, body } = event;
-  const query = queryString || {};
+  // 兼容不同的事件结构
+  const httpMethod = event.httpMethod || event.requestContext?.http?.method || 'GET';
+  const queryString = event.queryString || event.queryStringParameters || {};
+  const body = event.body || '';
+  const query = queryString;
+  
+  console.log('方法:', httpMethod);
+  console.log('参数:', query);
   
   // GET 请求 - 微信服务器验证
-  if (httpMethod === 'GET') {
+  if (httpMethod === 'GET' || httpMethod === 'get') {
     const { signature, timestamp, nonce, echostr } = query;
     
+    console.log('验证参数:', { signature, timestamp, nonce, echostr });
+    
+    if (!signature || !timestamp || !nonce || !echostr) {
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'text/plain' },
+        body: '参数缺失'
+      };
+    }
+    
     if (verifySignature(signature, timestamp, nonce, CONFIG.TOKEN)) {
+      console.log('验证成功');
       return {
         statusCode: 200,
         headers: { 'Content-Type': 'text/plain' },
         body: echostr
       };
     } else {
+      console.log('验证失败');
       return {
         statusCode: 200,
         headers: { 'Content-Type': 'text/plain' },
@@ -107,7 +125,7 @@ exports.main_handler = async (event, context) => {
   }
   
   // POST 请求 - 用户消息
-  if (httpMethod === 'POST') {
+  if (httpMethod === 'POST' || httpMethod === 'post') {
     try {
       const msg = parseMessage(body);
       console.log('解析消息:', msg);
